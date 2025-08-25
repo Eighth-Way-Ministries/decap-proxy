@@ -34,30 +34,35 @@ const handleAuth = async (url: URL, env: Env) => {
 	return new Response(null, { headers: { location: authorizationUri }, status: 301 });
 };
 
-const callbackScriptResponse = (status: string, token: string) => {
-	return new Response(
-		`
+const callbackScriptResponse = (
+        status: 'success' | 'error',
+        payload: Record<string, string>
+) => {
+        const json = JSON.stringify(payload);
+        return new Response(
+                `
 <html>
 <head>
-	<script>
-                const receiveMessage = (message) => {
+        <script>
+                const receiveMessage = () => {
                         window.opener.postMessage(
-                                'authorization:github:${status}:${token}',
+                                'authorization:github:${status}:${json}',
                                 '*'
                         );
-                        window.removeEventListener("message", receiveMessage, false);
-                }
-		window.addEventListener("message", receiveMessage, false);
-		window.opener.postMessage("authorizing:github", "*");
-	</script>
-	<body>
-		<p>Authorizing Decap...</p>
-	</body>
+                        window.removeEventListener('message', receiveMessage, false);
+                        window.close();
+                };
+                window.addEventListener('message', receiveMessage, false);
+                window.opener.postMessage('authorization:github', '*');
+        </script>
+        <body>
+                <p>Authorizing Decap...</p>
+        </body>
 </head>
 </html>
 `,
-		{ headers: { 'Content-Type': 'text/html' } }
-	);
+                { headers: { 'Content-Type': 'text/html' } }
+        );
 };
 
 const handleCallback = async (url: URL, env: Env) => {
@@ -71,12 +76,17 @@ const handleCallback = async (url: URL, env: Env) => {
 		return new Response('Missing code', { status: 400 });
 	}
 
-	const oauth2 = createOAuth(env);
-	const accessToken = await oauth2.getToken({
-		code,
-		redirect_uri: `https://${url.hostname}/callback?provider=github`,
-	});
-	return callbackScriptResponse('success', accessToken);
+        const oauth2 = createOAuth(env);
+        try {
+                const accessToken = await oauth2.getToken({
+                        code,
+                        redirect_uri: `https://${url.hostname}/callback?provider=github`,
+                });
+                return callbackScriptResponse('success', { token: accessToken });
+        } catch (err) {
+                const message = err instanceof Error ? err.message : 'unknown error';
+                return callbackScriptResponse('error', { message });
+        }
 };
 
 export default {
