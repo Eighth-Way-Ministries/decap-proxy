@@ -5,7 +5,7 @@ compatibility_date = "2024-04-19"
 compatibility_flags = ["nodejs_compat"]
 
 workers_dev = false
-route = { pattern = "https://d4134274-decap-proxy.ben-5e5.workers.dev/", zone_name = "liminalism.pages.dev", custom_domain = true }
+route = { pattern = "https://decap-proxy.ben-5e5.workers.dev/", zone_name = "liminalism.pages.dev", custom_domain = true }
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Docs:
@@ -102,4 +102,5 @@ route = { pattern = "https://d4134274-decap-proxy.ben-5e5.workers.dev/", zone_na
 # [[vectorize]]
 # binding = "MY_INDEX"
 # index_name = "my-index"
+
 
