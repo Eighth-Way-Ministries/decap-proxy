@@ -53,7 +53,8 @@ const callbackScriptResponse = (
                         window.close();
                 };
                 window.addEventListener('message', receiveMessage, false);
-                window.opener.postMessage('authorization:github', '*');
+                window.opener.postMessage('authorizing:github', '*');
+
         </script>
         <body>
                 <p>Authorizing Decap...</p>
