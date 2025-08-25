@@ -20,7 +20,7 @@ describe('GET /auth', () => {
 		expect(response.status).toBe(200);
 		expect(response.url).toEqual(
 			expect.stringContaining(
-				'https://github.com/login/oauth/authorize?response_type=code&client_id=undefined&redirect_uri=https://example.com/callback?provider=github&scope=public_repo,user&state='
+                                'https://github.com/login/oauth/authorize?response_type=code&client_id=undefined&redirect_uri=https://example.com/callback?provider=github&scope=repo,user&state='
 			)
 		);
 	});
