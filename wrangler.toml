@@ -4,7 +4,9 @@ main = "src/index.ts"
 compatibility_date = "2024-04-19"
 compatibility_flags = ["nodejs_compat"]
 
-workers_dev = true
+workers_dev = false
+route = { pattern = "decap-proxy.ben-5e5.workers.dev", zone_name = "liminalism.pages.dev", custom_domain = true }
+
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Docs:
@@ -101,6 +103,7 @@ workers_dev = true
 # [[vectorize]]
 # binding = "MY_INDEX"
 # index_name = "my-index"
+
 
 
 
