@@ -40,13 +40,13 @@ const callbackScriptResponse = (status: string, token: string) => {
 <html>
 <head>
 	<script>
-		const receiveMessage = (message) => {
-			window.opener.postMessage(
-				'authorization:github:${status}:${JSON.stringify({ token })}',
-				'*'
-			);
-			window.removeEventListener("message", receiveMessage, false);
-		}
+                const receiveMessage = (message) => {
+                        window.opener.postMessage(
+                                'authorization:github:${status}:${token}',
+                                '*'
+                        );
+                        window.removeEventListener("message", receiveMessage, false);
+                }
 		window.addEventListener("message", receiveMessage, false);
 		window.opener.postMessage("authorizing:github", "*");
 	</script>
