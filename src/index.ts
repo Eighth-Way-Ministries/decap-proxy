@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { PagesFunction } from '@cloudflare/workers-types';
 import { OAuthClient } from './oauth';
 
 interface Env {
@@ -90,15 +91,23 @@ const handleCallback = async (url: URL, env: Env) => {
         }
 };
 
+const handleRequest = async (request: Request, env: Env): Promise<Response> => {
+        const url = new URL(request.url);
+        if (url.pathname === '/auth') {
+                return handleAuth(url, env);
+        }
+        if (url.pathname === '/callback') {
+                return handleCallback(url, env);
+        }
+        return new Response('Hello 👋');
+};
+
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
-		if (url.pathname === '/auth') {
-			return handleAuth(url, env);
-		}
-		if (url.pathname === '/callback') {
-			return handleCallback(url, env);
-		}
-		return new Response('Hello 👋');
-	},
+        async fetch(request: Request, env: Env): Promise<Response> {
+                return handleRequest(request, env);
+        },
+};
+
+export const onRequest: PagesFunction<Env> = async (context) => {
+        return handleRequest(context.request, context.env);
 };
