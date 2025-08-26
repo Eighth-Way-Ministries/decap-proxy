@@ -2,14 +2,14 @@ import { randomBytes } from 'node:crypto';
 import { OAuthClient } from './oauth';
 
 interface Env {
-	GITHUB_OAUTH_ID: string;
-	GITHUB_OAUTH_SECRET: string;
+        GITHUB_CLIENT_ID: string;
+        GITHUB_CLIENT_SECRET: string;
 }
 
 const createOAuth = (env: Env) => {
 	return new OAuthClient({
-		id: env.GITHUB_OAUTH_ID,
-		secret: env.GITHUB_OAUTH_SECRET,
+                id: env.GITHUB_CLIENT_ID,
+                secret: env.GITHUB_CLIENT_SECRET,
 		target: {
 			tokenHost: 'https://github.com',
 			tokenPath: '/login/oauth/access_token',
