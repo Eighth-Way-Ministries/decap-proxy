@@ -1,6 +1,7 @@
 // test/index.spec.ts
 import { SELF, fetchMock } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
+import { onRequest } from '../src/index';
 
 beforeAll(() => {
 	fetchMock.activate();
@@ -15,7 +16,7 @@ describe('GET /', () => {
 });
 
 describe('GET /auth', () => {
-	it('responds with redirected location', async () => {
+        it('responds with redirected location', async () => {
                 const response = await SELF.fetch('https://example.com/auth?provider=github');
                 expect(response.status).toBe(200);
                 expect(response.url).toEqual(
@@ -24,6 +25,24 @@ describe('GET /auth', () => {
                         )
                 );
 	});
+});
+
+describe('Pages onRequest /auth', () => {
+        it('uses context.env bindings', async () => {
+                const request = new Request('https://example.com/auth?provider=github');
+                const context = {
+                        request,
+                        env: {
+                                GITHUB_CLIENT_ID: 'Ov23liMHgyLkKUcMYwsj',
+                                GITHUB_CLIENT_SECRET: 'secret',
+                        },
+                } as unknown as Parameters<typeof onRequest>[0];
+                const response = await onRequest(context);
+                expect(response.status).toBe(301);
+                expect(response.headers.get('location')).toContain(
+                        'https://github.com/login/oauth/authorize?response_type=code'
+                );
+        });
 });
 
 // TODO: figure out how to mock outbound fetch
