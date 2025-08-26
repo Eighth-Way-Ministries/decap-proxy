@@ -51,13 +51,12 @@ Disabling `workers_dev` is how you disable the default workers.dev preview domai
 
 #### Configure OAuth Secrets
 
-Using the OAuth application credentials you saved from the first section, you'll enter these as `GITHUB_OAUTH_ID` and `GITHUB_OAUTH_SECRET` secret values for your worker (nested under: `Compute (Workers) > Workers & Pages` > `Your Worker (decap-proxy)` > `Settings` > `Variables and Secrets` > `+ Add` and change the type to **Secret**).
+The `GITHUB_CLIENT_ID` is already configured in `wrangler.toml`. Store the corresponding `GITHUB_CLIENT_SECRET` for your worker in Cloudflare's secret store (nested under: `Compute (Workers) > Workers & Pages` > `Your Worker (decap-proxy)` > `Settings` > `Variables and Secrets` > `+ Add` and change the type to **Secret**).
 
-Alternatively, you can also add secrets via Wrangler:
+Alternatively, you can also add the secret via Wrangler:
 
 ```bash
-npx wrangler secret put GITHUB_OAUTH_ID
-npx wrangler secret put GITHUB_OAUTH_SECRET
+npx wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
 ### Point to Proxy in Decap Config
@@ -71,7 +70,5 @@ backend:
   name: github
   branch: main
   repo: "github-user/repo"
-+  base_url: https://decap.mydomain.com
+  base_url: https://decap.mydomain.com
 ```
-
-test

@@ -16,13 +16,13 @@ describe('GET /', () => {
 
 describe('GET /auth', () => {
 	it('responds with redirected location', async () => {
-		const response = await SELF.fetch('https://example.com/auth?provider=github');
-		expect(response.status).toBe(200);
-		expect(response.url).toEqual(
-			expect.stringContaining(
-                                'https://github.com/login/oauth/authorize?response_type=code&client_id=undefined&redirect_uri=https://example.com/callback?provider=github&scope=repo,user&state='
-			)
-		);
+                const response = await SELF.fetch('https://example.com/auth?provider=github');
+                expect(response.status).toBe(200);
+                expect(response.url).toEqual(
+                        expect.stringContaining(
+                                'https://github.com/login/oauth/authorize?response_type=code&client_id=Ov23liMHgyLkKUcMYwsj&redirect_uri=https://example.com/callback?provider=github&scope=repo,user&state='
+                        )
+                );
 	});
 });
 
