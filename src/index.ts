@@ -26,7 +26,7 @@ const handleAuth = async (url: URL, env: Env) => {
 
 	const oauth2 = createOAuth(env);
 	const authorizationUri = oauth2.authorizeURL({
-		redirect_uri: `https://${url.hostname}/callback?provider=github`,
+		redirect_uri: 'https://decap.eighthwayministries.org/callback?provider=github',
 		scope: 'repo,user',
 		state: randomBytes(4).toString('hex'),
 	});
