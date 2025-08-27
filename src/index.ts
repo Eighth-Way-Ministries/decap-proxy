@@ -1,171 +1,166 @@
-import { randomBytes } from 'node:crypto';
-import type { PagesFunction } from '@cloudflare/workers-types';
-import { OAuthClient } from './oauth';
+/**
+ * Cloudflare Worker – Decap OAuth proxy (GitHub)
+ * - /auth: generate state, set cookie, 302 to GitHub authorize
+ * - /callback: verify state, exchange code->token, postMessage back, clear cookie
+ */
 
 interface Env {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
 }
 
-/** Utils */
-const makeState = () => randomBytes(16).toString('hex');
+/* ---------- Utils ---------- */
+
+// Web Crypto (no node:crypto)
+const makeState = (): string => {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+};
 
 const getCookie = (cookieHeader: string | null, name: string): string | null => {
   if (!cookieHeader) return null;
   const cookies = cookieHeader.split(/; */);
   for (const c of cookies) {
-    const [k, ...v] = c.split('=');
-    if (k === name) return decodeURIComponent(v.join('='));
+    const [k, ...v] = c.split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
   }
   return null;
 };
 
-const createOAuth = (env: Env) => {
-  return new OAuthClient({
-    id: env.GITHUB_CLIENT_ID,
-    secret: env.GITHUB_CLIENT_SECRET,
-    target: {
-      tokenHost: 'https://github.com',
-      tokenPath: '/login/oauth/access_token',
-      authorizePath: '/login/oauth/authorize',
-    },
-  });
-};
-
-/** Builds a tiny HTML page that posts a message back to the opener and closes. */
-const callbackScriptResponse = (
-  status: 'success' | 'error',
-  payload: Record<string, string>
-) => {
-  const json = JSON.stringify(payload);
-  return new Response(
-    `<!doctype html>
-<html>
-<head><meta charset="utf-8"></head>
-<body>
-<script>
-  const receiveMessage = () => {
-    window.opener.postMessage('authorization:github:${status}:${json}', '*');
-    window.removeEventListener('message', receiveMessage, false);
-    window.close();
-  };
-  window.addEventListener('message', receiveMessage, false);
-  window.opener?.postMessage('authorizing:github', '*');
-</script>
-<p>Authorizing Decap...</p>
-</body>
-</html>`,
-    {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store',
-      },
-    }
+const htmlCloseWith = (msg: string, extraHeaders: Record<string, string> = {}): Response =>
+  new Response(
+    "<!doctype html><meta charset=\"utf-8\">" +
+      `<script>window.opener&&window.opener.postMessage('${msg}','*');window.close();</script>`,
+    { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...extraHeaders } }
   );
+
+const buildAuthorizeURL = (clientId: string, redirectUri: string, state: string): string => {
+  const u = new URL("https://github.com/login/oauth/authorize");
+  u.search = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri,          // keep EXACTLY in sync with OAuth App setting
+    scope: "repo user",                 // space-separated per GitHub canonical format
+    state,
+  }).toString();
+  return u.toString();
 };
 
-/** /auth handler: sets state cookie and 302s to GitHub authorize */
-const handleAuth = async (request: Request, env: Env) => {
+const exchangeCodeForToken = async (
+  env: Env,
+  code: string,
+  redirectUri: string
+): Promise<{ access_token?: string; error?: string }> => {
+  const res = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      "Accept": "application/json", // critical: ensures JSON response on both success & error
+    },
+    body: new URLSearchParams({
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+  // On any HTTP status, GitHub returns JSON when Accept: application/json is set
+  return res.json();
+};
+
+/* ---------- Handlers ---------- */
+
+const handleAuth = async (request: Request, env: Env): Promise<Response> => {
   const url = new URL(request.url);
-  const provider = url.searchParams.get('provider');
-  if (provider !== 'github') {
-    return new Response('Invalid provider', { status: 400 });
+  const provider = url.searchParams.get("provider");
+  if (provider !== "github") {
+    return new Response("Invalid provider", { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+
+  // Sanity: ensure env vars exist
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+    return new Response("Server not configured", { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 
   const redirectUri = `${url.origin}/callback?provider=github`;
   const state = makeState();
 
-  const oauth2 = createOAuth(env);
-  const authorizationUri = oauth2.authorizeURL({
-    redirect_uri: redirectUri,
-    scope: 'repo,user',
-    state,
-  });
+  const location = buildAuthorizeURL(env.GITHUB_CLIENT_ID, redirectUri, state);
 
   return new Response(null, {
-    status: 302, // use 302, not 301 (avoid caching)
+    status: 302, // do NOT use 301; avoid caching
     headers: {
-      Location: authorizationUri,
-      'Cache-Control': 'no-store',
-      // Cross-site popup requires SameSite=None; Secure
-      'Set-Cookie': `decap_oauth_state=${encodeURIComponent(
-        state
-      )}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=300`,
+      "Location": location,
+      "Cache-Control": "no-store",
+      // Cross-site popup flow requires SameSite=None; Secure; HttpOnly
+      "Set-Cookie": `decap_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=600`,
     },
   });
 };
 
-/** /callback handler: verifies state and exchanges code -> token */
-const handleCallback = async (request: Request, env: Env) => {
+const handleCallback = async (request: Request, env: Env): Promise<Response> => {
   const url = new URL(request.url);
-  const provider = url.searchParams.get('provider');
-  if (provider !== 'github') {
-    return new Response('Invalid provider', { status: 400 });
-  }
-
-  const code = url.searchParams.get('code');
-  if (!code) {
-    return new Response('Missing code', { status: 400 });
-  }
-
-  const returnedState = url.searchParams.get('state') || '';
-  const cookieState = getCookie(request.headers.get('Cookie'), 'decap_oauth_state') || '';
-  if (!returnedState || !cookieState || returnedState !== cookieState) {
-    return callbackScriptResponse('error', { message: 'invalid_state' });
-  }
-
-  const redirectUri = `${url.origin}/callback?provider=github`;
-  const oauth2 = createOAuth(env);
-
-  try {
-    // Ensure your OAuthClient uses Accept: application/json under the hood.
-    // If not, update it to set that header when calling GitHub.
-    const tokenRes: any = await oauth2.getToken({
-      code,
-      redirect_uri: redirectUri,
+  const provider = url.searchParams.get("provider");
+  if (provider !== "github") {
+    // Clear cookie on any bad path
+    return htmlCloseWith("authorization:github:error:{\"message\":\"invalid_provider\"}", {
+      "Set-Cookie": "decap_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None",
     });
+  }
 
-    // Normalize possible shapes
-    const accessToken =
-      typeof tokenRes === 'string'
-        ? tokenRes
-        : tokenRes.access_token ??
-          tokenRes.token?.access_token ??
-          '';
+  const code = url.searchParams.get("code");
+  const returnedState = url.searchParams.get("state") || "";
 
-    if (!accessToken) {
-      return callbackScriptResponse('error', { message: 'no_access_token' });
+  const cookieHeader = request.headers.get("Cookie");
+  const cookieState = getCookie(cookieHeader, "decap_oauth_state") || "";
+
+  if (!code || !returnedState || !cookieState || returnedState !== cookieState) {
+    // MUST clear the state cookie on invalid_state (must-fix #4)
+    return htmlCloseWith("authorization:github:error:{\"message\":\"invalid_state\"}", {
+      "Set-Cookie": "decap_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None",
+    });
+  }
+
+  // State matches: clear cookie now (one-time)
+  const clearStateCookie = "decap_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None";
+  const redirectUri = `${url.origin}/callback?provider=github`;
+
+  // Exchange code -> token (must-fix #2)
+  try {
+    const data = await exchangeCodeForToken(env, code, redirectUri);
+
+    if (data.access_token) {
+      return htmlCloseWith(
+        `authorization:github:success:${JSON.stringify({ token: data.access_token }).replace(/'/g, "\\'")}`,
+        { "Set-Cookie": clearStateCookie }
+      );
     }
 
-    // Success: post back to the opener
-    return callbackScriptResponse('success', { token: accessToken });
-  } catch (err: any) {
-    const message = err instanceof Error ? err.message : String(err ?? 'unknown error');
-    return callbackScriptResponse('error', { message });
+    // Error from GitHub (e.g., bad_verification_code, incorrect_client_credentials, etc.)
+    const errMsg = JSON.stringify({ message: data.error || "exchange_failed" }).replace(/'/g, "\\'");
+    return htmlCloseWith(`authorization:github:error:${errMsg}`, { "Set-Cookie": clearStateCookie });
+  } catch (e: any) {
+    const errMsg = JSON.stringify({ message: String(e?.message || e || "exchange_failed") }).replace(/'/g, "\\'");
+    return htmlCloseWith(`authorization:github:error:${errMsg}`, { "Set-Cookie": clearStateCookie });
   }
 };
 
-/** Router supporting both with/without trailing slashes */
-const handleRequest = async (request: Request, env: Env): Promise<Response> => {
-  const url = new URL(request.url);
-  const path = url.pathname;
+/* ---------- Router (supports with/without trailing slash) ---------- */
 
-  if (path === '/auth' || path === '/auth/') {
+const handleRequest = async (request: Request, env: Env): Promise<Response> => {
+  const { pathname } = new URL(request.url);
+
+  if (pathname === "/auth" || pathname === "/auth/") {
     return handleAuth(request, env);
   }
-  if (path === '/callback' || path === '/callback/') {
+  if (pathname === "/callback" || pathname === "/callback/") {
     return handleCallback(request, env);
   }
-  return new Response('Hello 👋');
+  return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
 };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, env);
   },
-};
-
-// Cloudflare Pages Functions entry (optional, keeps Workers + Pages parity)
-export const onRequest: PagesFunction<Env> = async (context) => {
-  return handleRequest(context.request, context.env);
 };
