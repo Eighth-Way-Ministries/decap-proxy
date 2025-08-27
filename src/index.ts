@@ -103,7 +103,7 @@ const handleCallback = async (request: Request, env: Env): Promise<Response> => 
   const provider = url.searchParams.get("provider");
   if (provider !== "github") {
     // Clear cookie on any bad path
-    return htmlCloseWith("authorization:github:error:{\"message\":\"invalid_provider\"}", {
+    return htmlCloseWith("authorization:github:failure:invalid_provider", {
       "Set-Cookie": "decap_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None",
     });
   }
@@ -116,7 +116,7 @@ const handleCallback = async (request: Request, env: Env): Promise<Response> => 
 
   if (!code || !returnedState || !cookieState || returnedState !== cookieState) {
     // MUST clear the state cookie on invalid_state (must-fix #4)
-    return htmlCloseWith("authorization:github:error:{\"message\":\"invalid_state\"}", {
+    return htmlCloseWith("authorization:github:failure:invalid_state", {
       "Set-Cookie": "decap_oauth_state=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None",
     });
   }
@@ -130,18 +130,17 @@ const handleCallback = async (request: Request, env: Env): Promise<Response> => 
     const data = await exchangeCodeForToken(env, code, redirectUri);
 
     if (data.access_token) {
-      return htmlCloseWith(
-        `authorization:github:success:${JSON.stringify({ token: data.access_token }).replace(/'/g, "\\'")}`,
-        { "Set-Cookie": clearStateCookie }
-      );
+      return htmlCloseWith(`authorization:github:success:${data.access_token}`, {
+        "Set-Cookie": clearStateCookie,
+      });
     }
 
     // Error from GitHub (e.g., bad_verification_code, incorrect_client_credentials, etc.)
-    const errMsg = JSON.stringify({ message: data.error || "exchange_failed" }).replace(/'/g, "\\'");
-    return htmlCloseWith(`authorization:github:error:${errMsg}`, { "Set-Cookie": clearStateCookie });
+    const errMsg = (data.error || "exchange_failed").replace(/'/g, "\\'");
+    return htmlCloseWith(`authorization:github:failure:${errMsg}`, { "Set-Cookie": clearStateCookie });
   } catch (e: any) {
-    const errMsg = JSON.stringify({ message: String(e?.message || e || "exchange_failed") }).replace(/'/g, "\\'");
-    return htmlCloseWith(`authorization:github:error:${errMsg}`, { "Set-Cookie": clearStateCookie });
+    const errMsg = String(e?.message || e || "exchange_failed").replace(/'/g, "\\'");
+    return htmlCloseWith(`authorization:github:failure:${errMsg}`, { "Set-Cookie": clearStateCookie });
   }
 };
 
