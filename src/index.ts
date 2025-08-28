@@ -31,7 +31,7 @@ const getCookie = (cookieHeader: string | null, name: string): string | null => 
 const htmlCloseWith = (msg: string, extraHeaders: Record<string, string> = {}): Response =>
   new Response(
     "<!doctype html><meta charset=\"utf-8\">" +
-      `<script>window.opener&&window.opener.postMessage('${msg}','*');window.close();</script>`,
+      `<script>(function(){try{var m='${msg}';if(window.opener){window.opener.postMessage(m,'*');if(m.indexOf('authorization:github:success:{\"token\":')===0){var legacy=m.replace(/:\{"token":"([^"]+)"\}$/, ':$1');window.opener.postMessage(legacy,'*');}}}catch(e){}setTimeout(function(){window.close();},150);}())</script>`,
     { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...extraHeaders } }
   );
 
