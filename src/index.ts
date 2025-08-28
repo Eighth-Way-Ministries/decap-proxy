@@ -50,9 +50,14 @@ const htmlCloseWith = (msg: string, extraHeaders: Record<string, string> = {}): 
                 var jsonPart = m.slice('authorization:github:success:'.length);
                 var parsed = JSON.parse(jsonPart || 'null');
                 if (parsed && parsed.token) {
+                  var token = parsed.token;
+                  var state = parsed.state || '';
                   // Also send the space-delimited legacy JSON form
-                  try { window.opener.postMessage('authorization:github ' + JSON.stringify({ token: parsed.token, state: parsed.state || '' }), '*'); } catch(_){ }
-                  window.opener.postMessage({ type: 'authorization', provider: 'github', token: parsed.token, state: parsed.state || '' }, '*');
+                  try { window.opener.postMessage('authorization:github ' + JSON.stringify({ token: token, state: state }), '*'); } catch(_){ }
+                  // Also send the space-delimited plain token form
+                  try { window.opener.postMessage('authorization:github ' + token, '*'); } catch(_){ }
+                  // Object form for newer Decap CMS
+                  window.opener.postMessage({ type: 'authorization', provider: 'github', token: token, state: state }, '*');
                 }
               } catch (_) { /* swallow */ }
             }
