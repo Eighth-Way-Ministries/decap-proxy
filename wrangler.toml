@@ -8,7 +8,7 @@ workers_dev = false
 route = { pattern = "decap.eighthwayministries.org", zone_name = "eighthwayministries.org", custom_domain = true }
 
 [vars]
-GITHUB_CLIENT_ID = "Ov23liMHgyLkKUcMYwsj"
+GITHUB_CLIENT_ID = "Ov23lip0IFnhLG0yv9Mn"
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Docs:
@@ -103,6 +103,7 @@ GITHUB_CLIENT_ID = "Ov23liMHgyLkKUcMYwsj"
 # [[vectorize]]
 # binding = "MY_INDEX"
 # index_name = "my-index"
+
 
 
 
