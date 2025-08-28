@@ -50,7 +50,9 @@ const htmlCloseWith = (msg: string, extraHeaders: Record<string, string> = {}): 
                 var jsonPart = m.slice('authorization:github:success:'.length);
                 var parsed = JSON.parse(jsonPart || 'null');
                 if (parsed && parsed.token) {
-                  window.opener.postMessage({ type: 'authorization', provider: 'github', token: parsed.token }, '*');
+                  // Also send the space-delimited legacy JSON form
+                  try { window.opener.postMessage('authorization:github ' + JSON.stringify({ token: parsed.token, state: parsed.state || '' }), '*'); } catch(_){ }
+                  window.opener.postMessage({ type: 'authorization', provider: 'github', token: parsed.token, state: parsed.state || '' }, '*');
                 }
               } catch (_) { /* swallow */ }
             }
@@ -156,8 +158,8 @@ const handleCallback = async (request: Request, env: Env): Promise<Response> => 
     const data = await exchangeCodeForToken(env, code, redirectUri);
 
     if (data.access_token) {
-      // Decap expects JSON payload: {"token":"<access_token>"}
-      return htmlCloseWith(`authorization:github:success:${JSON.stringify({ token: data.access_token })}` , {
+      // Include state so Decap can correlate pending auth request
+      return htmlCloseWith(`authorization:github:success:${JSON.stringify({ token: data.access_token, state: returnedState })}` , {
         "Set-Cookie": clearStateCookie,
       });
     }
