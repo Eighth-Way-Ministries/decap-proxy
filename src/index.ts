@@ -130,7 +130,8 @@ const handleCallback = async (request: Request, env: Env): Promise<Response> => 
     const data = await exchangeCodeForToken(env, code, redirectUri);
 
     if (data.access_token) {
-      return htmlCloseWith(`authorization:github:success:${data.access_token}`, {
+      // Decap expects JSON payload: {"token":"<access_token>"}
+      return htmlCloseWith(`authorization:github:success:${JSON.stringify({ token: data.access_token })}` , {
         "Set-Cookie": clearStateCookie,
       });
     }
