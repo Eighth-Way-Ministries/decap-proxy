@@ -31,7 +31,33 @@ const getCookie = (cookieHeader: string | null, name: string): string | null => 
 const htmlCloseWith = (msg: string, extraHeaders: Record<string, string> = {}): Response =>
   new Response(
     "<!doctype html><meta charset=\"utf-8\">" +
-      `<script>(function(){try{var m='${msg}';if(window.opener){window.opener.postMessage(m,'*');if(m.indexOf('authorization:github:success:{\"token\":')===0){var legacy=m.replace(/:\{"token":"([^"]+)"\}$/, ':$1');window.opener.postMessage(legacy,'*');}}}catch(e){}setTimeout(function(){window.close();},150);}())</script>`,
+      `<script>(function(){
+        try {
+          var m='${msg}';
+          if (window.opener) {
+            // Always send the original string message (new + failure cases)
+            window.opener.postMessage(m,'*');
+
+            // If success with JSON payload, also send legacy and object forms
+            if (m.indexOf('authorization:github:success:') === 0) {
+              try {
+                // Legacy colon form (kept from previous behavior)
+                if (m.indexOf('authorization:github:success:{\"token\":')===0) {
+                  var legacy=m.replace(/:\{"token":"([^"]+)"\}$/, ':$1');
+                  window.opener.postMessage(legacy,'*');
+                }
+                // Object form for newer Decap CMS
+                var jsonPart = m.slice('authorization:github:success:'.length);
+                var parsed = JSON.parse(jsonPart || 'null');
+                if (parsed && parsed.token) {
+                  window.opener.postMessage({ type: 'authorization', provider: 'github', token: parsed.token }, '*');
+                }
+              } catch (_) { /* swallow */ }
+            }
+          }
+        } catch (e) { /* swallow */ }
+        setTimeout(function(){ try{ window.close(); }catch(_){} },150);
+      }())</script>`,
     { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...extraHeaders } }
   );
 
