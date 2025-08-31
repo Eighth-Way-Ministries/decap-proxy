@@ -2,6 +2,6 @@
 // by running `wrangler types`
 
 interface Env {
-        GITHUB_CLIENT_ID: "Ov23liMHgyLkKUcMYwsj";
-        GITHUB_CLIENT_SECRET: string;
+        GITHUB_OAUTH_ID: "Ov23lip0IFnhLG0yv9Mn";
+        GITHUB_OAUTH_SECRET: string;
 }
